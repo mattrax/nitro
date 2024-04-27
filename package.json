@@ -38,10 +38,7 @@
     "nitro": "./dist/cli/index.mjs",
     "nitropack": "./dist/cli/index.mjs"
   },
-  "files": [
-    "dist",
-    "*.d.ts"
-  ],
+  "files": ["dist", "*.d.ts"],
   "scripts": {
     "build": "unbuild",
     "dev": "pnpm nitro dev playground",
@@ -171,7 +168,7 @@
       "optional": true
     }
   },
-  "packageManager": "pnpm@8.15.6",
+  "packageManager": "pnpm@9.0.6",
   "engines": {
     "node": "^16.11.0 || >=17.0.0"
   },

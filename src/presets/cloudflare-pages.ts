@@ -1,5 +1,5 @@
 import { existsSync, promises as fsp } from "node:fs";
-import { resolve, join } from "pathe";
+import { resolve, join, parse } from "pathe";
 import {
   joinURL,
   withLeadingSlash,
@@ -68,11 +68,11 @@ export const cloudflarePagesStatic = defineNitroPreset({
 
 async function writeCFRoutes(nitro: Nitro) {
   const _cfPagesConfig = nitro.options.cloudflare?.pages || {};
-  const routes: CloudflarePagesRoutes = {
+  const routes = {
     version: _cfPagesConfig.routes?.version || 1,
     include: _cfPagesConfig.routes?.include || ["/*"],
     exclude: _cfPagesConfig.routes?.exclude || [],
-  };
+  } satisfies CloudflarePagesRoutes;
 
   const writeRoutes = () =>
     fsp.writeFile(
@@ -125,12 +125,31 @@ async function writeCFRoutes(nitro: Nitro) {
       ),
     ],
   });
-  routes.exclude.push(
-    ...publicAssetFiles.map((i) => withLeadingSlash(i)).sort(comparePaths)
-  );
 
-  // Only allow 100 rules in total (include + exclude)
-  routes.exclude.splice(100 - routes.include.length);
+  const excludes = new Set<string>();
+  for (const publicAsset of publicAssetFiles) {
+    const dir = parse(publicAsset).dir;
+
+    console.log({ dir });
+    if (dir === ".") {
+      excludes.add(withLeadingSlash(publicAsset));
+      continue;
+    } else {
+      excludes.add(withLeadingSlash(`${dir}/*`));
+    }
+  }
+
+  console.log(excludes);
+  for (const exclude of excludes) {
+    if (!exclude.endsWith("/*")) continue;
+    console.log({ exclude });
+
+    if (excludes.has(resolve(exclude, "../..", "*"))) {
+      excludes.delete(exclude);
+    }
+  }
+
+  routes.exclude.push(...[...excludes].sort(comparePaths));
 
   await writeRoutes();
 }
