@@ -111,45 +111,25 @@ async function writeCFRoutes(nitro: Nitro) {
       .sort(comparePaths)
   );
 
+  const ignore = [
+    "_worker.js",
+    "_worker.js.map",
+    "nitro.json",
+    ...routes.exclude.map((path) =>
+      withoutLeadingSlash(path.replace(/\/\*$/, "/**"))
+    ),
+  ];
   // Unprefixed assets
   const publicAssetFiles = await globby("**", {
     cwd: nitro.options.output.publicDir,
     absolute: false,
     dot: true,
-    ignore: [
-      "_worker.js",
-      "_worker.js.map",
-      "nitro.json",
-      ...routes.exclude.map((path) =>
-        withoutLeadingSlash(path.replace(/\/\*$/, "/**"))
-      ),
-    ],
+    ignore,
   });
 
-  const excludes = new Set<string>();
-  for (const publicAsset of publicAssetFiles) {
-    const dir = parse(publicAsset).dir;
-
-    console.log({ dir });
-    if (dir === ".") {
-      excludes.add(withLeadingSlash(publicAsset));
-      continue;
-    } else {
-      excludes.add(withLeadingSlash(`${dir}/*`));
-    }
-  }
-
-  console.log(excludes);
-  for (const exclude of excludes) {
-    if (!exclude.endsWith("/*")) continue;
-    console.log({ exclude });
-
-    if (excludes.has(resolve(exclude, "../..", "*"))) {
-      excludes.delete(exclude);
-    }
-  }
-
-  routes.exclude.push(...[...excludes].sort(comparePaths));
+  routes.exclude.push(
+    ...generateExclude(publicAssetFiles, ignore).sort(comparePaths)
+  );
 
   await writeRoutes();
 }
@@ -232,4 +212,54 @@ async function writeCFPagesRedirects(nitro: Nitro) {
   }
 
   await fsp.writeFile(redirectsPath, contents.join("\n"));
+}
+
+/**
+ * Generates the `exclude` array for _routes.json, preferring to use wildcard excludes where possible
+ * to get around the 100 entry limit.
+ *
+ * @param assets - Assets to be excluded.
+ * @param ignore - Paths ignored by the search for assets.
+ * Used to determine whether a directory can be wildcard excluded or only partially excluded.
+ */
+function generateExclude(assets: string[], ignore: string[]) {
+  const partiallyIgnoredDirs = new Set(
+    ignore.flatMap((path) => {
+      // we don't care about fully excluded dirs
+      if (path.endsWith("/**")) {
+        return [];
+      }
+
+      return [withLeadingSlash(parse(path).dir)];
+    })
+  );
+
+  const excludes = new Set<string>();
+
+  // add directories and assets (if directory is partially ignored)
+  for (const asset of assets) {
+    const dir = withLeadingSlash(parse(asset).dir);
+
+    if (dir === ".") {
+      excludes.add(asset);
+      continue;
+    } else if (partiallyIgnoredDirs.has(dir)) {
+      excludes.add(withLeadingSlash(asset));
+    } else {
+      excludes.add(`${dir}/*`);
+    }
+  }
+
+  // filter out nested directories
+  for (const exclude of excludes) {
+    if (!exclude.endsWith("/*")) {
+      continue;
+    }
+
+    if (excludes.has(resolve(exclude, "../..", "*"))) {
+      excludes.delete(exclude);
+    }
+  }
+
+  return [...excludes];
 }
