@@ -152,7 +152,7 @@ async function writeCFPagesHeaders(nitro: Nitro) {
     const headers = [
       path.replace("/**", "/*"),
       ...Object.entries({ ...routeRules.headers }).map(
-        ([header, value]) => `  ${header}: ${value}`
+        ([header, value]) => `!${header}\n  ${header}: ${value}`
       ),
     ].join("\n");
 
