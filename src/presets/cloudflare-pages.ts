@@ -144,7 +144,7 @@ async function writeCFPagesHeaders(nitro: Nitro) {
 
   const rules = Object.entries(nitro.options.routeRules).sort(
     (a, b) => b[0].split(/\/(?!\*)/).length - a[0].split(/\/(?!\*)/).length
-  );
+  ).sort((a, b) => (b[1]?.priority || 0) - (a[1]?.priority || 0));
 
   for (const [path, routeRules] of rules.filter(
     ([_, routeRules]) => routeRules.headers
